@@ -6,10 +6,7 @@
  */
 import { describe, it } from 'node:test'
 import assert from 'node:assert/strict'
-import { existsSync, mkdirSync, mkdtempSync, rmSync, writeFileSync } from 'node:fs'
-import { tmpdir } from 'node:os'
-import { join } from 'node:path'
-import { sideCommandsDefinition, parentContext, contextPrompt, childSessionDir, cleanupEphemeralChild, startSideChat } from '../lib/index.js'
+import { sideCommandsDefinition, parentContext, contextPrompt, startSideChat } from '../lib/index.js'
 
 const CHILD = '11111111-2222-3333-4444-555555555555'
 const RUN = 'aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee'
@@ -95,21 +92,12 @@ describe('/side', () => {
 })
 
 describe('/btw', () => {
-  it('starts a one-shot run, disposes after settle, and triggers the ephemeral cleanup', async () => {
+  it('never spawns a subagent: with a question it just returns a prefill marker', async () => {
     const subagents = makeSubagents()
-    const cleaned = []
-    const agent = { session: { id: 'parent-1' } }
-    const result = await commands(subagents, { cleanupChild: (id) => { cleaned.push(id) } }).btw.handler({ agent, rawInput: 'quick question', signal: undefined })
+    const result = await commands(subagents).btw.handler({ agent: {}, rawInput: 'quick question', signal: undefined })
     assert.equal(result.kind, 'success')
-    assert.ok(result.text.includes(RUN))
-    const [verb, provider, request] = subagents.calls[0]
-    assert.equal(verb, 'start')
-    assert.equal(provider, 'fork')
-    assert.equal(request.parent, agent)
-    // the background settle path must release the run, then clean up
-    await new Promise((resolve) => setTimeout(resolve, 20))
-    assert.ok(subagents.calls.some((entry) => entry[0] === 'dispose'))
-    assert.deepEqual(cleaned, [RUN])
+    assert.equal(result.text, '已打开侧栏面板：quick question')
+    assert.equal(subagents.calls.length, 0)
   })
   it('opens the panel (success marker) when run without arguments', async () => {
     const subagents = makeSubagents()
@@ -117,26 +105,6 @@ describe('/btw', () => {
     assert.equal(result.kind, 'success')
     assert.ok(result.text.includes('已打开侧栏面板'))
     assert.equal(subagents.calls.length, 0)
-  })
-  it('carries the parent conversation tail into the child prompt', async () => {
-    const subagents = makeSubagents()
-    const agent = {
-      session: {
-        id: 'parent-1',
-        events: [
-          { type: 'user/message', data: { content: [{ type: 'text', text: '你好' }] } },
-          { type: 'assistant/message', data: { content: [{ type: 'text', text: '你好呀' }] } },
-        ],
-      },
-    }
-    const result = await commands(subagents).btw.handler({ agent, rawInput: '总结一下', signal: undefined })
-    assert.equal(result.kind, 'success')
-    const [, , request] = subagents.calls[0]
-    const text = request.prompt[0].text
-    assert.ok(text.includes('当前对话上下文'))
-    assert.ok(text.includes('用户：你好'))
-    assert.ok(text.includes('助手：你好呀'))
-    assert.ok(text.includes('问题：总结一下'))
   })
 })
 
@@ -201,37 +169,4 @@ describe('startSideChat (direct panel route)', () => {
   })
 })
 
-describe('ephemeral /btw cleanup', () => {
-  it('locates a child session dir across encoded workspace dirs', () => {
-    const home = mkdtempSync(join(tmpdir(), 'ufx-ephem-'))
-    try {
-      const ws = join(home, 'sessions', '--Users-qdd-codex-workspace-oh-my-dsh--')
-      const child = join(ws, CHILD)
-      mkdirSync(child, { recursive: true })
-      writeFileSync(join(child, 'session.jsonl'), '{}')
-      assert.equal(childSessionDir(home, CHILD), child)
-      assert.equal(childSessionDir(home, 'missing-id'), null)
-    } finally {
-      rmSync(home, { recursive: true, force: true })
-    }
-  })
-  it('deletes the persisted session and archives the child', () => {
-    const home = mkdtempSync(join(tmpdir(), 'ufx-ephem-'))
-    const previous = process.env.DSH_HOME
-    process.env.DSH_HOME = home
-    try {
-      const ws = join(home, 'sessions', '--workspace--')
-      const child = join(ws, CHILD)
-      mkdirSync(child, { recursive: true })
-      writeFileSync(join(child, 'session.jsonl'), '{}')
-      const archived = []
-      const ctx = { get: (key) => (key === 'workspaces' ? { archiveSession: async (id) => { archived.push(id) } } : undefined) }
-      cleanupEphemeralChild(ctx, CHILD, 0)
-      assert.equal(existsSync(child), false)
-      assert.deepEqual(archived, [CHILD])
-    } finally {
-      process.env.DSH_HOME = previous
-      rmSync(home, { recursive: true, force: true })
-    }
-  })
-})
+

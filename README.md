@@ -130,24 +130,20 @@ Replaces the dsh-sidechain plugin with an in-house implementation —
 scratch against the official SDK (subagent service + fork provider + command
 registry + better-sidebar tab registry), no sidechain code copied.
 
-Host half registers two slash commands:
+Host half registers three slash commands:
 
-- `/side <question>` — durable **continuable** child on the official fork
-  backend; later messages keep the same conversation (the panel's composer).
-- `/btw <question>` — **one-shot** background child; its answer lands in the
-  child log and the run is disposed in the background once it settles.
-  A bare `/btw` (no arguments) just **opens the Side chat panel**.
-- `/btw` is **ephemeral**: the card renders nothing in the main
-  conversation (the question text is never recorded either), and shortly
-  after the run settles the child is archived and its persisted session is
-  physically deleted — no history remains. The official command lifecycle
-  events themselves cannot be suppressed by a plugin (the dispatcher always
-  appends `command/run`/`command/done`); they stay invisible in the UI.
+- `/btw [<question>]` — **never spawns anything itself**: it opens the Side
+  chat panel, and a question given after the command is **prefilled into
+  the panel's composer** for the user to send there (the card renders
+  nothing in the main conversation, so no history is left behind).
 - `/chat <message>` — **pure-chat** continuable child with an empty tool
   allowlist: it can only converse, no tools visible or executable.
-- the commands **carry the recent parent conversation tail** into the
-  child prompt (the fork seed only covers completed turns — a fresh
-  conversation or an unfinished turn would otherwise leave the child
+- `/side <question>` — durable **continuable** child on the official fork
+  backend with tools; later messages keep the same conversation (the
+  panel's composer).
+- the child-creating commands **carry the recent parent conversation tail**
+  into the child prompt (the fork seed only covers completed turns — a
+  fresh conversation or an unfinished turn would otherwise leave the child
   without context).
 
 Client half provides:
