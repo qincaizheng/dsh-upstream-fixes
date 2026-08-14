@@ -136,10 +136,11 @@ from a parent it no longer lives under); only its inline styles are driven:
   re-synced every animation frame (z-index 51, border/shadow neutralized);
   when the panel is closed, the tab auto-opens it via sidechain's own
   Ctrl/Cmd+Shift+E listener (synthetic keydown);
-- the sidechain toggle / shortcut / a new child opening the panel while the
-  tab is not in sight brings the sidebar up and focuses this tab
-  (content-seeded `openTab`, which expands a collapsed panel), with the
-  panel held hidden during the slide-in so the floating form never flashes;
+- a **global watcher** (always on, even before the tab is ever opened)
+  intercepts the sidechain toggle / shortcut / a new child opening the
+  panel: it brings the sidebar up and focuses this tab (content-seeded
+  `openTab`, which expands a collapsed panel), with the panel held hidden
+  via a class during the slide-in so the floating form never flashes;
 - another tab active → the panel stays mounted but hidden in place;
 - sidebar closed (and no bring-up pending) → the panel is handed back to
   its original floating form;
