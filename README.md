@@ -123,32 +123,32 @@ access, so any namespace a plugin registers becomes editable from the Web
 UI (the describe side stays secret-redacted, matching the official view).
 Node-half route + client bridge: restart `dsh web`, then refresh the page.
 
-### 7. dsh-sidechain — floating right panel integrated into dsh-better-sidebar
+### 7. Own side-chat feature (dsh-sidechain replacement)
 
-sidechain renders its subagent panel as a fixed right-edge `aside`
-(z-index 200) that floats **over** better-sidebar's right panel (z-index 50).
-This plugin registers a `sidechain` tab through better-sidebar's public
-registry (`ctx.betterSidebar.registerTab`) and docks the existing panel into
-it — the React-owned node is never moved (a re-render would then remove it
-from a parent it no longer lives under); only its inline styles are driven:
+Replaces the dsh-sidechain plugin with an in-house implementation —
+**dsh-sidechain is no longer needed and can be uninstalled.** Written from
+scratch against the official SDK (subagent service + fork provider + command
+registry + better-sidebar tab registry), no sidechain code copied.
 
-- tab visible → the aside is pinned exactly over the tab content rect and
-  re-synced every animation frame (z-index 51, border/shadow neutralized);
-  when the panel is closed, the tab auto-opens it via sidechain's own
-  Ctrl/Cmd+Shift+E listener (synthetic keydown);
-- a **global watcher** (always on, even before the tab is ever opened)
-  intercepts the sidechain toggle / shortcut / a new child opening the
-  panel: it brings the sidebar up and focuses this tab (content-seeded
-  `openTab`, which expands a collapsed panel), with the panel held hidden
-  via a class during the slide-in so the floating form never flashes;
-- another tab active → the panel stays mounted but hidden in place;
-- sidebar closed (and no bring-up pending) → the panel is handed back to
-  its original floating form;
-- the user closing the panel from its own UI is respected (no auto-reopen),
-  and closing the tab closes the panel again when the tab had opened it.
+Host half registers two slash commands:
 
-Client-side only: rebuild not needed — refresh the page and open the
-better-sidebar + menu's new Sidechain tab.
+- `/side <question>` — durable **continuable** child on the official fork
+  backend; later messages keep the same conversation (the panel's composer).
+- `/btw <question>` — **one-shot** background child; its answer lands in the
+  child log and the run is disposed in the background once it settles.
+
+Client half provides:
+
+- a **Side chat tab in dsh-better-sidebar** (official registry): child list
+  with live state, embedded transcript (3s polling while visible), reply
+  composer for continuable children, interrupt for running ones;
+- command cards for `/side` and `/btw` with a "view in sidebar" jump that
+  opens the tab and preselects the child parsed from the command outcome;
+- a Ctrl/Cmd+Shift+E shortcut and a session-header 侧聊 toggle, both opening
+  the tab.
+
+Both halves live in this plugin — no floating panel, no DOM surgery. Restart
+`dsh web` (host commands) and refresh the page (client bundle).
 
 ## Install
 

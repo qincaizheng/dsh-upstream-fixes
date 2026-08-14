@@ -16,6 +16,7 @@ async function bootWith(settings) {
     get: (key) => (key === 'settings' ? settings : undefined),
     reflect: { provide: () => {} },
     effect: (fn) => { fn() },
+    inject: () => {},
   }
   apply(ctx)
   const call = (url, method, body) => new Promise((resolve) => {
