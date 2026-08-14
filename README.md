@@ -136,14 +136,20 @@ Host half registers two slash commands:
   backend; later messages keep the same conversation (the panel's composer).
 - `/btw <question>` — **one-shot** background child; its answer lands in the
   child log and the run is disposed in the background once it settles.
+- both commands **carry the recent parent conversation tail** into the
+  child prompt (the fork seed only covers completed turns — a fresh
+  conversation or an unfinished turn would otherwise leave the child
+  without context).
 
 Client half provides:
 
 - a **Side chat tab in dsh-better-sidebar** (official registry): child list
   with live state, embedded transcript (3s polling while visible), reply
   composer for continuable children, interrupt for running ones;
-- command cards for `/side` and `/btw` with a "view in sidebar" jump that
-  opens the tab and preselects the child parsed from the command outcome;
+- command cards for `/side` and `/btw` that **auto-open the tab** (and
+  preselect the child) when the command settles — once per child per
+  browser tab, so historical cards never re-trigger the popup — plus a
+  manual "view in sidebar" jump;
 - a Ctrl/Cmd+Shift+E shortcut and a session-header 侧聊 toggle, both opening
   the tab.
 
