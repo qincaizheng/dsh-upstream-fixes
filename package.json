@@ -1,7 +1,7 @@
 {
   "name": "@dsh-external/dsh-upstream-fixes",
   "description": "Compatibility fixes for broken third-party dsh plugins: makes dsh-auto-approval's scoped package references resolve to the published bare-named packages, shims dsh-sidechain's deep client import onto the public runtime client entry, aliases the legacy httpServer service for dsh-vision-toolkit, and gives the plugin-console panel real update support (git pull / pnpm update --latest).",
-  "version": "0.2.0",
+  "version": "0.2.1",
   "type": "module",
   "main": "lib/index.js",
   "types": "lib/index.d.ts",

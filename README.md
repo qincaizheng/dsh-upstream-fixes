@@ -137,6 +137,12 @@ Host half registers two slash commands:
 - `/btw <question>` — **one-shot** background child; its answer lands in the
   child log and the run is disposed in the background once it settles.
   A bare `/btw` (no arguments) just **opens the Side chat panel**.
+- `/btw` is **ephemeral**: the card renders nothing in the main
+  conversation (the question text is never recorded either), and shortly
+  after the run settles the child is archived and its persisted session is
+  physically deleted — no history remains. The official command lifecycle
+  events themselves cannot be suppressed by a plugin (the dispatcher always
+  appends `command/run`/`command/done`); they stay invisible in the UI.
 - `/chat <message>` — **pure-chat** continuable child with an empty tool
   allowlist: it can only converse, no tools visible or executable.
 - the commands **carry the recent parent conversation tail** into the

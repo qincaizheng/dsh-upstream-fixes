@@ -6,7 +6,10 @@
  */
 import { describe, it } from 'node:test'
 import assert from 'node:assert/strict'
-import { sideCommandsDefinition, parentContext, contextPrompt } from '../lib/index.js'
+import { existsSync, mkdirSync, mkdtempSync, rmSync, writeFileSync } from 'node:fs'
+import { tmpdir } from 'node:os'
+import { join } from 'node:path'
+import { sideCommandsDefinition, parentContext, contextPrompt, childSessionDir, cleanupEphemeralChild } from '../lib/index.js'
 
 const CHILD = '11111111-2222-3333-4444-555555555555'
 const RUN = 'aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee'
@@ -27,8 +30,8 @@ function makeSubagents(overrides = {}) {
   }
 }
 
-function commands(subagents) {
-  return Object.fromEntries(sideCommandsDefinition(subagents).map((d) => [d.name, d]))
+function commands(subagents, hooks = {}) {
+  return Object.fromEntries(sideCommandsDefinition(subagents, hooks).map((d) => [d.name, d]))
 }
 
 describe('parent context helpers', () => {
@@ -92,19 +95,21 @@ describe('/side', () => {
 })
 
 describe('/btw', () => {
-  it('starts a one-shot run, reports its id, and disposes after settle', async () => {
+  it('starts a one-shot run, disposes after settle, and triggers the ephemeral cleanup', async () => {
     const subagents = makeSubagents()
+    const cleaned = []
     const agent = { session: { id: 'parent-1' } }
-    const result = await commands(subagents).btw.handler({ agent, rawInput: 'quick question', signal: undefined })
+    const result = await commands(subagents, { cleanupChild: (id) => { cleaned.push(id) } }).btw.handler({ agent, rawInput: 'quick question', signal: undefined })
     assert.equal(result.kind, 'success')
     assert.ok(result.text.includes(RUN))
     const [verb, provider, request] = subagents.calls[0]
     assert.equal(verb, 'start')
     assert.equal(provider, 'fork')
     assert.equal(request.parent, agent)
-    // the background settle path must release the run
+    // the background settle path must release the run, then clean up
     await new Promise((resolve) => setTimeout(resolve, 20))
     assert.ok(subagents.calls.some((entry) => entry[0] === 'dispose'))
+    assert.deepEqual(cleaned, [RUN])
   })
   it('opens the panel (success marker) when run without arguments', async () => {
     const subagents = makeSubagents()
@@ -157,5 +162,40 @@ describe('/chat', () => {
     const result = await commands(makeSubagents()).chat.handler({ agent: {}, rawInput: '', signal: undefined })
     assert.equal(result.kind, 'error')
     assert.ok(result.text.includes('/chat'))
+  })
+})
+
+describe('ephemeral /btw cleanup', () => {
+  it('locates a child session dir across encoded workspace dirs', () => {
+    const home = mkdtempSync(join(tmpdir(), 'ufx-ephem-'))
+    try {
+      const ws = join(home, 'sessions', '--Users-qdd-codex-workspace-oh-my-dsh--')
+      const child = join(ws, CHILD)
+      mkdirSync(child, { recursive: true })
+      writeFileSync(join(child, 'session.jsonl'), '{}')
+      assert.equal(childSessionDir(home, CHILD), child)
+      assert.equal(childSessionDir(home, 'missing-id'), null)
+    } finally {
+      rmSync(home, { recursive: true, force: true })
+    }
+  })
+  it('deletes the persisted session and archives the child', () => {
+    const home = mkdtempSync(join(tmpdir(), 'ufx-ephem-'))
+    const previous = process.env.DSH_HOME
+    process.env.DSH_HOME = home
+    try {
+      const ws = join(home, 'sessions', '--workspace--')
+      const child = join(ws, CHILD)
+      mkdirSync(child, { recursive: true })
+      writeFileSync(join(child, 'session.jsonl'), '{}')
+      const archived = []
+      const ctx = { get: (key) => (key === 'workspaces' ? { archiveSession: async (id) => { archived.push(id) } } : undefined) }
+      cleanupEphemeralChild(ctx, CHILD, 0)
+      assert.equal(existsSync(child), false)
+      assert.deepEqual(archived, [CHILD])
+    } finally {
+      process.env.DSH_HOME = previous
+      rmSync(home, { recursive: true, force: true })
+    }
   })
 })
