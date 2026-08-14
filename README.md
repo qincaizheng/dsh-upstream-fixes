@@ -1,6 +1,6 @@
 # @dsh-external/dsh-upstream-fixes
 
-Compatibility fixes for two broken third-party dsh plugins, packaged as one
+Compatibility fixes for broken third-party dsh plugins, packaged as one
 installable bundle plugin so every user gets the same repair without editing
 the broken packages or their profile config by hand.
 
@@ -30,6 +30,18 @@ Fix: this plugin's client bundle registers, during the `immediately` prefetch
 tier (before any plugin factory materializes), a shim factory for that exact
 specifier that delegates to the public
 `@deepseek-ai/dsh-client-runtime/client` entry.
+
+### 3. dsh-vision-toolkit@0.1.2 — legacy `httpServer` service key
+
+The package attaches its Web routes by injecting the legacy `httpServer`
+service, but the current webserver registers itself as `webServer`, so the
+inject never resolves: `/_dsh/vision-toolkit/settings` falls through to the
+SPA index and the settings panel dies with
+`Unexpected token '<', "<!doctype "... is not valid JSON`.
+
+Fix: this plugin's host half provides an `httpServer` alias pointing at the
+same `webServer` service instance, so the legacy inject resolves and the
+routes attach. The alias is skipped if a real `httpServer` service exists.
 
 ## Install
 
