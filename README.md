@@ -136,7 +136,10 @@ Host half registers two slash commands:
   backend; later messages keep the same conversation (the panel's composer).
 - `/btw <question>` — **one-shot** background child; its answer lands in the
   child log and the run is disposed in the background once it settles.
-- both commands **carry the recent parent conversation tail** into the
+  A bare `/btw` (no arguments) just **opens the Side chat panel**.
+- `/chat <message>` — **pure-chat** continuable child with an empty tool
+  allowlist: it can only converse, no tools visible or executable.
+- the commands **carry the recent parent conversation tail** into the
   child prompt (the fork seed only covers completed turns — a fresh
   conversation or an unfinished turn would otherwise leave the child
   without context).
@@ -145,7 +148,9 @@ Client half provides:
 
 - a **Side chat tab in dsh-better-sidebar** (official registry): child list
   with live state, embedded transcript (3s polling while visible), reply
-  composer for continuable children, interrupt for running ones; a hidden
+  composer for continuable children, interrupt for running ones, and a
+  top composer that starts a brand-new pure-chat conversation right from
+  the panel (routed through the host `/chat` command); a hidden
   legacy `sidechain` alias recovers tabs persisted from before the rename
   (better-sidebar keeps open tabs in localStorage — without the alias they
   would render as a permanent "plugin not loaded" orphan);

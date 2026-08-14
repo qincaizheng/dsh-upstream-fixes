@@ -106,10 +106,12 @@ describe('/btw', () => {
     await new Promise((resolve) => setTimeout(resolve, 20))
     assert.ok(subagents.calls.some((entry) => entry[0] === 'dispose'))
   })
-  it('refuses an empty question', async () => {
-    const result = await commands(makeSubagents()).btw.handler({ agent: {}, rawInput: '', signal: undefined })
-    assert.equal(result.kind, 'error')
-    assert.ok(result.text.includes('/btw'))
+  it('opens the panel (success marker) when run without arguments', async () => {
+    const subagents = makeSubagents()
+    const result = await commands(subagents).btw.handler({ agent: {}, rawInput: '   ', signal: undefined })
+    assert.equal(result.kind, 'success')
+    assert.ok(result.text.includes('已打开侧栏面板'))
+    assert.equal(subagents.calls.length, 0)
   })
   it('carries the parent conversation tail into the child prompt', async () => {
     const subagents = makeSubagents()
@@ -130,5 +132,30 @@ describe('/btw', () => {
     assert.ok(text.includes('用户：你好'))
     assert.ok(text.includes('助手：你好呀'))
     assert.ok(text.includes('问题：总结一下'))
+  })
+})
+
+describe('/chat', () => {
+  it('starts a continuable child restricted to zero tools', async () => {
+    const subagents = makeSubagents()
+    const agent = {
+      session: {
+        id: 'parent-1',
+        events: [{ type: 'user/message', data: { content: [{ type: 'text', text: '之前聊过' }] } }],
+      },
+    }
+    const result = await commands(subagents).chat.handler({ agent, rawInput: '陪我聊聊', signal: undefined })
+    assert.equal(result.kind, 'success')
+    assert.ok(result.text.includes(CHILD))
+    assert.ok(result.text.includes('纯对话'))
+    const [, spec] = subagents.calls[0]
+    assert.equal(spec.provider, 'fork')
+    assert.deepEqual(spec.request.toolFilter, { allow: [] })
+    assert.ok(spec.request.prompt[0].text.includes('问题：陪我聊聊'))
+  })
+  it('refuses an empty message', async () => {
+    const result = await commands(makeSubagents()).chat.handler({ agent: {}, rawInput: '', signal: undefined })
+    assert.equal(result.kind, 'error')
+    assert.ok(result.text.includes('/chat'))
   })
 })
