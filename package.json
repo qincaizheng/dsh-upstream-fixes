@@ -1,7 +1,7 @@
 {
   "name": "@dsh-external/dsh-upstream-fixes",
-  "description": "Compatibility fixes for broken third-party dsh plugins: makes dsh-auto-approval's scoped package references resolve to the published bare-named packages, and shims dsh-sidechain's deep client import onto the public runtime client entry.",
-  "version": "0.1.1",
+  "description": "Compatibility fixes for broken third-party dsh plugins: makes dsh-auto-approval's scoped package references resolve to the published bare-named packages, shims dsh-sidechain's deep client import onto the public runtime client entry, aliases the legacy httpServer service for dsh-vision-toolkit, and gives the plugin-console panel real update support (git pull / pnpm update --latest).",
+  "version": "0.1.4",
   "type": "module",
   "main": "lib/index.js",
   "types": "lib/index.d.ts",
@@ -18,7 +18,8 @@
   ],
   "scripts": {
     "postinstall": "node scripts/install-aliases.mjs",
-    "fix-aliases": "node scripts/install-aliases.mjs"
+    "fix-aliases": "node scripts/install-aliases.mjs",
+    "test": "node --test \"tests/*.test.mjs\""
   },
   "dsh": {
     "bundle": {
