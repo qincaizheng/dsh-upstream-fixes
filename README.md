@@ -33,17 +33,24 @@ specifier that delegates to the public
 
 ## Install
 
-```sh
-dsh plugin --profile web add @dsh-external/dsh-upstream-fixes
-```
-
-The postinstall runs automatically for registry installs. If you installed
-from a local path (postinstall does not run for `link:` deps), or the links
-ever go stale, repair with:
+Clone the repository and add the plugin by its local path:
 
 ```sh
-node scripts/install-aliases.mjs   # from inside this plugin directory
+git clone https://github.com/qincaizheng/dsh-upstream-fixes.git ~/.dsh/plugins/dsh-upstream-fixes
+dsh plugin --profile web add ~/.dsh/plugins/dsh-upstream-fixes
 ```
+
+`dsh plugin add` with a file path installs a `link:` dependency, and pnpm does
+not run postinstall scripts for linked packages. Create the alias symlinks
+manually:
+
+```sh
+node ~/.dsh/plugins/dsh-upstream-fixes/scripts/install-aliases.mjs
+```
+
+The same command doubles as a repair tool: re-run it whenever the links go
+stale (profile reinstall, DSH home move, ...). If you install the package
+from a registry instead, the postinstall runs automatically.
 
 ## Remove
 
