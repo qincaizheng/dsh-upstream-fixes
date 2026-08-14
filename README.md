@@ -123,6 +123,27 @@ access, so any namespace a plugin registers becomes editable from the Web
 UI (the describe side stays secret-redacted, matching the official view).
 Node-half route + client bridge: restart `dsh web`, then refresh the page.
 
+### 7. dsh-sidechain — floating right panel integrated into dsh-better-sidebar
+
+sidechain renders its subagent panel as a fixed right-edge `aside`
+(z-index 200) that floats **over** better-sidebar's right panel (z-index 50).
+This plugin registers a `sidechain` tab through better-sidebar's public
+registry (`ctx.betterSidebar.registerTab`) and docks the existing panel into
+it — the React-owned node is never moved (a re-render would then remove it
+from a parent it no longer lives under); only its inline styles are driven:
+
+- tab visible → the aside is pinned exactly over the tab content rect and
+  re-synced every animation frame (z-index 51, border/shadow neutralized);
+  when the panel is closed, the tab auto-opens it via sidechain's own
+  Ctrl/Cmd+Shift+E listener (synthetic keydown);
+- another tab active → the panel stays mounted but hidden in place;
+- sidebar closed → the panel is handed back to its original floating form;
+- the user closing the panel from its own UI is respected (no auto-reopen),
+  and closing the tab closes the panel again when the tab had opened it.
+
+Client-side only: rebuild not needed — refresh the page and open the
+better-sidebar + menu's new Sidechain tab.
+
 ## Install
 
 Clone the repository and add the plugin by its local path:
