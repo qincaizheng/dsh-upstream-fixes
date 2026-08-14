@@ -9,7 +9,7 @@ import assert from 'node:assert/strict'
 import { existsSync, mkdirSync, mkdtempSync, rmSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
-import { sideCommandsDefinition, parentContext, contextPrompt, childSessionDir, cleanupEphemeralChild } from '../lib/index.js'
+import { sideCommandsDefinition, parentContext, contextPrompt, childSessionDir, cleanupEphemeralChild, startSideChat } from '../lib/index.js'
 
 const CHILD = '11111111-2222-3333-4444-555555555555'
 const RUN = 'aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee'
@@ -162,6 +162,42 @@ describe('/chat', () => {
     const result = await commands(makeSubagents()).chat.handler({ agent: {}, rawInput: '', signal: undefined })
     assert.equal(result.kind, 'error')
     assert.ok(result.text.includes('/chat'))
+  })
+})
+
+describe('startSideChat (direct panel route)', () => {
+  it('refuses an empty message', async () => {
+    const ctx = { get: () => ({ get: () => ({}) }) }
+    const result = await startSideChat(ctx, 'parent-1', '   ')
+    assert.equal(result.ok, false)
+  })
+  it('reports a missing conversation agent', async () => {
+    const ctx = { get: (key) => (key === 'agents' ? { get: () => undefined } : undefined) }
+    const result = await startSideChat(ctx, 'parent-1', 'hello')
+    assert.equal(result.ok, false)
+    assert.ok(result.message.includes('agent'))
+  })
+  it('creates a pure-chat continuable child for the conversation agent', async () => {
+    const calls = []
+    const agent = { session: { id: 'parent-1', events: [{ type: 'user/message', data: { content: [{ type: 'text', text: '之前聊过' }] } }] } }
+    const subagents = {
+      getProvider: () => ({ name: 'fork' }),
+      startContinuable: async (spec) => { calls.push(spec); return { childId: CHILD } },
+    }
+    const ctx = {
+      get: (key) => {
+        if (key === 'agents') return { get: (id) => (id === 'parent-1' ? agent : undefined) }
+        if (key === 'subagents') return subagents
+        return undefined
+      },
+    }
+    const result = await startSideChat(ctx, 'parent-1', '陪我聊聊')
+    assert.deepEqual(result, { ok: true, childId: CHILD })
+    const spec = calls[0]
+    assert.equal(spec.provider, 'fork')
+    assert.equal(spec.request.parent, agent)
+    assert.deepEqual(spec.request.toolFilter, { allow: [] })
+    assert.ok(spec.request.prompt[0].text.includes('问题：陪我聊聊'))
   })
 })
 

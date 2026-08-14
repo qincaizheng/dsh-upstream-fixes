@@ -153,13 +153,15 @@ Host half registers two slash commands:
 Client half provides:
 
 - a **Side chat tab in dsh-better-sidebar** (official registry): child list
-  with live state, embedded transcript (3s polling while visible), reply
-  composer for continuable children, interrupt for running ones, and a
-  top composer that starts a brand-new pure-chat conversation right from
-  the panel (routed through the host `/chat` command); a hidden
-  legacy `sidechain` alias recovers tabs persisted from before the rename
-  (better-sidebar keeps open tabs in localStorage — without the alias they
-  would render as a permanent "plugin not loaded" orphan);
+  with live state, embedded transcript (3s polling while visible), interrupt
+  for running ones, and **one** bottom composer — with no child selected it
+  starts a brand-new pure-chat conversation through a direct host route
+  (`POST /api/upstream-fixes/sidechat/start`, nothing recorded in the main
+  conversation), with a continuable child selected the same input replies
+  to it; a hidden legacy `sidechain` alias recovers tabs persisted from
+  before the rename (better-sidebar keeps open tabs in localStorage —
+  without the alias they would render as a permanent "plugin not loaded"
+  orphan);
 - command cards for `/side` and `/btw` that **auto-open the tab** (and
   preselect the child) when the command settles — once per child per
   browser tab, so historical cards never re-trigger the popup — plus a
