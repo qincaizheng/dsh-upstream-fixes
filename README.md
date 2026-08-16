@@ -163,7 +163,18 @@ Client half provides:
   browser tab, so historical cards never re-trigger the popup — plus a
   manual "view in sidebar" jump;
 - a Ctrl/Cmd+Shift+E shortcut and a session-header 侧聊 toggle, both opening
-  the tab.
+  the tab;
+- a **模型** section in the panel: bind a subagent NAME to a model picked
+  from the official model list (provider / model, e.g. `work` → `r` /
+  `deepseek-v4-flash`). Config persists under
+  `$DSH_HOME/upstream-fixes-subagent-models.json` (GET/POST
+  `/api/upstream-fixes/subagent-models`).
+
+**Named dispatch**: start a request with `名称 问题` (e.g.
+`/chat work 帮我总结`, or in the panel composer) and the child is
+labelled with that name and STRICTLY runs on the configured
+provider/model (`agentOptions` override, read fresh at dispatch time).
+Names without a binding fall back to the plain question.
 
 Both halves live in this plugin — no floating panel, no DOM surgery. Restart
 `dsh web` (host commands) and refresh the page (client bundle).

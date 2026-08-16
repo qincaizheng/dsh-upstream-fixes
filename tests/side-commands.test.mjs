@@ -6,7 +6,10 @@
  */
 import { describe, it } from 'node:test'
 import assert from 'node:assert/strict'
-import { sideCommandsDefinition, parentContext, contextPrompt, startSideChat } from '../lib/index.js'
+import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from 'node:fs'
+import { tmpdir } from 'node:os'
+import { join } from 'node:path'
+import { sideCommandsDefinition, parentContext, contextPrompt, startSideChat, parseNamedRequest, readSubagentModels, subagentModelsPath } from '../lib/index.js'
 
 const CHILD = '11111111-2222-3333-4444-555555555555'
 const RUN = 'aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee'
@@ -130,6 +133,84 @@ describe('/chat', () => {
     const result = await commands(makeSubagents()).chat.handler({ agent: {}, rawInput: '', signal: undefined })
     assert.equal(result.kind, 'error')
     assert.ok(result.text.includes('/chat'))
+  })
+})
+
+describe('named subagent models', () => {
+  it('parses a leading configured name into a strict model override', () => {
+    const models = { work: { provider: 'r', model: 'deepseek-v4-flash' } }
+    assert.deepEqual(parseNamedRequest('work 帮我总结', models), {
+      name: 'work',
+      prompt: '帮我总结',
+      agentOptions: { provider: 'r', model: 'deepseek-v4-flash' },
+    })
+  })
+  it('keeps the untouched question when no name matches', () => {
+    const models = { work: { provider: 'r', model: 'deepseek-v4-flash' } }
+    assert.deepEqual(parseNamedRequest('随便 问个问题', models), { prompt: '随便 问个问题' })
+    assert.deepEqual(parseNamedRequest('work', models), { prompt: 'work' })
+    assert.deepEqual(parseNamedRequest('work   ', models), { prompt: 'work   ' })
+  })
+  it('persists and reloads the config file', () => {
+    const home = mkdtempSync(join(tmpdir(), 'ufx-models-'))
+    const previous = process.env.DSH_HOME
+    process.env.DSH_HOME = home
+    try {
+      assert.deepEqual(readSubagentModels(), {})
+      mkdirSync(join(home), { recursive: true })
+      writeFileSync(subagentModelsPath(), JSON.stringify({ work: { provider: 'r', model: 'deepseek-v4-flash' } }))
+      assert.deepEqual(readSubagentModels(), { work: { provider: 'r', model: 'deepseek-v4-flash' } })
+    } finally {
+      process.env.DSH_HOME = previous
+      rmSync(home, { recursive: true, force: true })
+    }
+  })
+  it('/side strictly uses the configured model for a named dispatch', async () => {
+    const home = mkdtempSync(join(tmpdir(), 'ufx-models-'))
+    const previous = process.env.DSH_HOME
+    process.env.DSH_HOME = home
+    const subagents = makeSubagents()
+    try {
+      writeFileSync(subagentModelsPath(), JSON.stringify({ work: { provider: 'r', model: 'deepseek-v4-flash' } }))
+      const result = await commands(subagents).side.handler({ agent: {}, rawInput: 'work 整理文档', signal: undefined })
+      assert.equal(result.kind, 'success')
+      const [, spec] = subagents.calls[0]
+      assert.equal(spec.label, 'work')
+      assert.deepEqual(spec.request.agentOptions, { provider: 'r', model: 'deepseek-v4-flash' })
+      assert.deepEqual(spec.request.prompt, [{ type: 'text', text: '整理文档' }])
+    } finally {
+      process.env.DSH_HOME = previous
+      rmSync(home, { recursive: true, force: true })
+    }
+  })
+  it('startSideChat strictly uses the configured model for a named dispatch', async () => {
+    const home = mkdtempSync(join(tmpdir(), 'ufx-models-'))
+    const previous = process.env.DSH_HOME
+    process.env.DSH_HOME = home
+    const calls = []
+    const agent = { session: { id: 'parent-1' } }
+    try {
+      writeFileSync(subagentModelsPath(), JSON.stringify({ work: { provider: 'r', model: 'deepseek-v4-flash' } }))
+      const ctx = {
+        get: (key) => {
+          if (key === 'agents') return { get: () => agent }
+          if (key === 'subagents') return {
+            getProvider: () => ({ name: 'fork' }),
+            startContinuable: async (spec) => { calls.push(spec); return { childId: CHILD } },
+          }
+          return undefined
+        },
+      }
+      const result = await startSideChat(ctx, 'parent-1', 'work 写个函数')
+      assert.equal(result.ok, true)
+      const spec = calls[0]
+      assert.equal(spec.label, 'work')
+      assert.deepEqual(spec.request.agentOptions, { provider: 'r', model: 'deepseek-v4-flash' })
+      assert.deepEqual(spec.request.toolFilter, { allow: [] })
+    } finally {
+      process.env.DSH_HOME = previous
+      rmSync(home, { recursive: true, force: true })
+    }
   })
 })
 
