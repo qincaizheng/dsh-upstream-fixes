@@ -1,5 +1,5 @@
 /**
- * Tests for the /side /btw command definitions (own side-chat
+ * Tests for the /side /chat command definitions (own side-chat
  * implementation): the handlers drive the official subagent service,
  * refuse empty input and missing backends, and always dispose one-shot
  * runs once they settle.
@@ -91,23 +91,6 @@ describe('/side', () => {
     const result = await commands(subagents).side.handler({ agent: {}, rawInput: 'x', signal: undefined })
     assert.equal(result.kind, 'error')
     assert.ok(result.text.includes('boom'))
-  })
-})
-
-describe('/btw', () => {
-  it('never spawns a subagent: with a question it just returns a prefill marker', async () => {
-    const subagents = makeSubagents()
-    const result = await commands(subagents).btw.handler({ agent: {}, rawInput: 'quick question', signal: undefined })
-    assert.equal(result.kind, 'success')
-    assert.equal(result.text, '已打开侧栏面板：quick question')
-    assert.equal(subagents.calls.length, 0)
-  })
-  it('opens the panel (success marker) when run without arguments', async () => {
-    const subagents = makeSubagents()
-    const result = await commands(subagents).btw.handler({ agent: {}, rawInput: '   ', signal: undefined })
-    assert.equal(result.kind, 'success')
-    assert.ok(result.text.includes('已打开侧栏面板'))
-    assert.equal(subagents.calls.length, 0)
   })
 })
 

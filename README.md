@@ -132,10 +132,6 @@ registry + better-sidebar tab registry), no sidechain code copied.
 
 Host half registers three slash commands:
 
-- `/btw [<question>]` — **never spawns anything itself**: it opens the Side
-  chat panel, and a question given after the command is **prefilled into
-  the panel's composer** for the user to send there (the card renders
-  nothing in the main conversation, so no history is left behind).
 - `/chat <message>` — **pure-chat** continuable child with an empty tool
   allowlist: it can only converse, no tools visible or executable.
 - `/side <question>` — durable **continuable** child on the official fork
@@ -158,7 +154,7 @@ Client half provides:
   before the rename (better-sidebar keeps open tabs in localStorage —
   without the alias they would render as a permanent "plugin not loaded"
   orphan);
-- command cards for `/side` and `/btw` that **auto-open the tab** (and
+- command cards for `/side` and `/chat` that **auto-open the tab** (and
   preselect the child) when the command settles — once per child per
   browser tab, so historical cards never re-trigger the popup — plus a
   manual "view in sidebar" jump;
