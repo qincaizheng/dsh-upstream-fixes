@@ -9,7 +9,7 @@ import assert from 'node:assert/strict'
 import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
-import { sideCommandsDefinition, parentContext, contextPrompt, startSideChat, parseNamedRequest, readSubagentModels, subagentModelsPath } from '../lib/index.js'
+import { sideCommandsDefinition, parentContext, contextPrompt, startSideChat, parseNamedRequest, readSubagentModels, subagentModelsPath, tokenize, autoSelectModel, resolveDispatch } from '../lib/index.js'
 
 const CHILD = '11111111-2222-3333-4444-555555555555'
 const RUN = 'aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee'
@@ -190,6 +190,60 @@ describe('named subagent models', () => {
       assert.equal(spec.label, 'work')
       assert.deepEqual(spec.request.agentOptions, { provider: 'r', model: 'deepseek-v4-flash' })
       assert.deepEqual(spec.request.toolFilter, { allow: [] })
+    } finally {
+      process.env.DSH_HOME = previous
+      rmSync(home, { recursive: true, force: true })
+    }
+  })
+})
+
+describe('auto-select by description', () => {
+  const MODELS = {
+    work: { description: '代码、工程与调试任务', provider: 'r', model: 'deepseek-v4-flash' },
+    writer: { description: '文案、写作与润色', provider: 'r', model: 'deepseek-v4-plus' },
+  }
+  it('tokenizes CJK and latin words', () => {
+    assert.deepEqual(tokenize('帮我 Debug 一个函数'), ['帮我', 'debug', '一个函数'])
+  })
+  it('picks the entry with the best description overlap', () => {
+    const best = autoSelectModel('帮我润色这段文案', MODELS)
+    assert.equal(best.name, 'writer')
+    assert.deepEqual(best.agentOptions, { provider: 'r', model: 'deepseek-v4-plus' })
+  })
+  it('returns null when nothing matches', () => {
+    assert.equal(autoSelectModel('今天天气怎么样', MODELS), null)
+  })
+  it('explicit name wins over auto-selection', () => {
+    const resolved = resolveDispatch('work 帮我改个 bug', MODELS)
+    assert.equal(resolved.name, 'work')
+    assert.equal(resolved.prompt, '帮我改个 bug')
+    assert.equal(resolved.auto, undefined)
+  })
+  it('auto-selects and keeps the full question as the prompt', () => {
+    const resolved = resolveDispatch('帮我润色这段文案', MODELS)
+    assert.equal(resolved.name, 'writer')
+    assert.equal(resolved.prompt, '帮我润色这段文案')
+    assert.equal(resolved.auto, true)
+  })
+  it('falls back to the plain question when nothing matches', () => {
+    const resolved = resolveDispatch('今天天气怎么样', MODELS)
+    assert.deepEqual(resolved, { prompt: '今天天气怎么样' })
+  })
+  it('/chat auto-routes by description when no name is given', async () => {
+    const home = mkdtempSync(join(tmpdir(), 'ufx-models-'))
+    const previous = process.env.DSH_HOME
+    process.env.DSH_HOME = home
+    const subagents = makeSubagents()
+    try {
+      writeFileSync(subagentModelsPath(), JSON.stringify({
+        work: { description: '代码、工程与调试任务', provider: 'r', model: 'deepseek-v4-flash' },
+      }))
+      const result = await commands(subagents).chat.handler({ agent: {}, rawInput: '帮我调试这段代码', signal: undefined })
+      assert.equal(result.kind, 'success')
+      const [, spec] = subagents.calls[0]
+      assert.equal(spec.label, 'work')
+      assert.deepEqual(spec.request.agentOptions, { provider: 'r', model: 'deepseek-v4-flash' })
+      assert.deepEqual(spec.request.prompt, [{ type: 'text', text: '帮我调试这段代码' }])
     } finally {
       process.env.DSH_HOME = previous
       rmSync(home, { recursive: true, force: true })

@@ -160,17 +160,21 @@ Client half provides:
   manual "view in sidebar" jump;
 - a Ctrl/Cmd+Shift+E shortcut and a session-header 侧聊 toggle, both opening
   the tab;
-- a **模型** section in the panel: bind a subagent NAME to a model picked
-  from the official model list (provider / model, e.g. `work` → `r` /
-  `deepseek-v4-flash`). Config persists under
-  `$DSH_HOME/upstream-fixes-subagent-models.json` (GET/POST
+- a **侧聊 section on the settings page** (global, not per-session): each
+  subagent entry binds a NAME, a DESCRIPTION, and a model picked from the
+  global model catalog (`GET /api/upstream-fixes/model-catalog` — the
+  session-scoped `llm.models` RPC cannot serve the settings page). Config
+  persists under `$DSH_HOME/upstream-fixes-subagent-models.json` (GET/POST
   `/api/upstream-fixes/subagent-models`).
 
-**Named dispatch**: start a request with `名称 问题` (e.g.
+**Dispatch**: start a request with `名称 问题` (e.g.
 `/chat work 帮我总结`, or in the panel composer) and the child is
 labelled with that name and STRICTLY runs on the configured
 provider/model (`agentOptions` override, read fresh at dispatch time).
-Names without a binding fall back to the plain question.
+Without an explicit name, the request is **auto-routed by description** —
+the best token/bigram overlap between the request and each entry's
+name + description wins; no match falls back to the plain question with
+the parent model.
 
 Both halves live in this plugin — no floating panel, no DOM surgery. Restart
 `dsh web` (host commands) and refresh the page (client bundle).
