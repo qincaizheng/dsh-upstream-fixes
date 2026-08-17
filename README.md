@@ -130,14 +130,16 @@ Replaces the dsh-sidechain plugin with an in-house implementation —
 scratch against the official SDK (subagent service + fork provider + command
 registry + better-sidebar tab registry), no sidechain code copied.
 
-Host half registers three slash commands:
+Host half registers one slash command and a **global subagent dispatch
+rule**:
 
-- `/chat <message>` — **pure-chat** continuable child with an empty tool
-  allowlist: it can only converse, no tools visible or executable.
 - `/side <question>` — durable **continuable** child on the official fork
   backend with tools; later messages keep the same conversation (the
   panel's composer).
-- the child-creating commands **carry the recent parent conversation tail**
+- the global rule wraps the fork provider's `start`: **every one-shot
+  subagent dispatch** — including ones the model's own tools initiate —
+  resolves the name->model config first.
+- the child-creating paths **carry the recent parent conversation tail**
   into the child prompt (the fork seed only covers completed turns — a
   fresh conversation or an unfinished turn would otherwise leave the child
   without context).
@@ -154,27 +156,28 @@ Client half provides:
   before the rename (better-sidebar keeps open tabs in localStorage —
   without the alias they would render as a permanent "plugin not loaded"
   orphan);
-- command cards for `/side` and `/chat` that **auto-open the tab** (and
-  preselect the child) when the command settles — once per child per
-  browser tab, so historical cards never re-trigger the popup — plus a
-  manual "view in sidebar" jump;
+- a command card for `/side` that **auto-opens the tab** (and preselects
+  the child) when the command settles — once per child per browser tab, so
+  historical cards never re-trigger the popup — plus a manual "view in
+  sidebar" jump;
 - a Ctrl/Cmd+Shift+E shortcut and a session-header 侧聊 toggle, both opening
   the tab;
-- a **侧聊 section on the settings page** (global, not per-session): each
-  subagent entry binds a NAME, a DESCRIPTION, and a model picked from the
-  global model catalog (`GET /api/upstream-fixes/model-catalog` — the
-  session-scoped `llm.models` RPC cannot serve the settings page). Config
-  persists under `$DSH_HOME/upstream-fixes-subagent-models.json` (GET/POST
+- a **子代理模型 section on the settings page** (global, unrelated to the
+  sidebar): each subagent entry binds a NAME, a DESCRIPTION, and a model
+  picked from the global model catalog (`GET
+  /api/upstream-fixes/model-catalog` — the session-scoped `llm.models` RPC
+  cannot serve the settings page). Config persists under
+  `$DSH_HOME/upstream-fixes-subagent-models.json` (GET/POST
   `/api/upstream-fixes/subagent-models`).
 
-**Dispatch**: start a request with `名称 问题` (e.g.
-`/chat work 帮我总结`, or in the panel composer) and the child is
-labelled with that name and STRICTLY runs on the configured
-provider/model (`agentOptions` override, read fresh at dispatch time).
-Without an explicit name, the request is **auto-routed by description** —
-the best token/bigram overlap between the request and each entry's
-name + description wins; no match falls back to the plain question with
-the parent model.
+**Dispatch rule (global)**: start a request with `名称 问题` (e.g. `/side
+work 帮我总结`, or in the panel composer) and the child is labelled with
+that name and STRICTLY runs on the configured provider/model
+(`agentOptions` override, read fresh at dispatch time). Without an
+explicit name, the request is **auto-routed by description** — the best
+token/bigram overlap between the request and each entry's name +
+description wins; no match falls back to the plain question with the
+parent model.
 
 Both halves live in this plugin — no floating panel, no DOM surgery. Restart
 `dsh web` (host commands) and refresh the page (client bundle).

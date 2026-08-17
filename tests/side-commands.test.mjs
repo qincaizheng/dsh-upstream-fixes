@@ -1,5 +1,5 @@
 /**
- * Tests for the /side /chat command definitions (own side-chat
+ * Tests for the /side command definition and the subagent dispatch rules (own side-chat
  * implementation): the handlers drive the official subagent service,
  * refuse empty input and missing backends, and always dispose one-shot
  * runs once they settle.
@@ -9,7 +9,7 @@ import assert from 'node:assert/strict'
 import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
-import { sideCommandsDefinition, parentContext, contextPrompt, startSideChat, parseNamedRequest, readSubagentModels, subagentModelsPath, tokenize, autoSelectModel, resolveDispatch } from '../lib/index.js'
+import { sideCommandsDefinition, parentContext, contextPrompt, startSideChat, parseNamedRequest, readSubagentModels, subagentModelsPath, tokenize, autoSelectModel, resolveDispatch, installDispatchRule } from '../lib/index.js'
 
 const CHILD = '11111111-2222-3333-4444-555555555555'
 const RUN = 'aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee'
@@ -91,31 +91,6 @@ describe('/side', () => {
     const result = await commands(subagents).side.handler({ agent: {}, rawInput: 'x', signal: undefined })
     assert.equal(result.kind, 'error')
     assert.ok(result.text.includes('boom'))
-  })
-})
-
-describe('/chat', () => {
-  it('starts a continuable child restricted to zero tools', async () => {
-    const subagents = makeSubagents()
-    const agent = {
-      session: {
-        id: 'parent-1',
-        events: [{ type: 'user/message', data: { content: [{ type: 'text', text: '之前聊过' }] } }],
-      },
-    }
-    const result = await commands(subagents).chat.handler({ agent, rawInput: '陪我聊聊', signal: undefined })
-    assert.equal(result.kind, 'success')
-    assert.ok(result.text.includes(CHILD))
-    assert.ok(result.text.includes('纯对话'))
-    const [, spec] = subagents.calls[0]
-    assert.equal(spec.provider, 'fork')
-    assert.deepEqual(spec.request.toolFilter, { allow: [] })
-    assert.ok(spec.request.prompt[0].text.includes('问题：陪我聊聊'))
-  })
-  it('refuses an empty message', async () => {
-    const result = await commands(makeSubagents()).chat.handler({ agent: {}, rawInput: '', signal: undefined })
-    assert.equal(result.kind, 'error')
-    assert.ok(result.text.includes('/chat'))
   })
 })
 
@@ -229,25 +204,89 @@ describe('auto-select by description', () => {
     const resolved = resolveDispatch('今天天气怎么样', MODELS)
     assert.deepEqual(resolved, { prompt: '今天天气怎么样' })
   })
-  it('/chat auto-routes by description when no name is given', async () => {
+  it('startSideChat auto-routes by description when no name is given', async () => {
     const home = mkdtempSync(join(tmpdir(), 'ufx-models-'))
     const previous = process.env.DSH_HOME
     process.env.DSH_HOME = home
-    const subagents = makeSubagents()
+    const calls = []
+    const agent = { session: { id: 'parent-1' } }
     try {
       writeFileSync(subagentModelsPath(), JSON.stringify({
         work: { description: '代码、工程与调试任务', provider: 'r', model: 'deepseek-v4-flash' },
       }))
-      const result = await commands(subagents).chat.handler({ agent: {}, rawInput: '帮我调试这段代码', signal: undefined })
-      assert.equal(result.kind, 'success')
-      const [, spec] = subagents.calls[0]
+      const ctx = {
+        get: (key) => {
+          if (key === 'agents') return { get: () => agent }
+          if (key === 'subagents') return {
+            getProvider: () => ({ name: 'fork' }),
+            startContinuable: async (spec) => { calls.push(spec); return { childId: CHILD } },
+          }
+          return undefined
+        },
+      }
+      const result = await startSideChat(ctx, 'parent-1', '帮我调试这段代码')
+      assert.equal(result.ok, true)
+      const spec = calls[0]
       assert.equal(spec.label, 'work')
       assert.deepEqual(spec.request.agentOptions, { provider: 'r', model: 'deepseek-v4-flash' })
-      assert.deepEqual(spec.request.prompt, [{ type: 'text', text: '帮我调试这段代码' }])
     } finally {
       process.env.DSH_HOME = previous
       rmSync(home, { recursive: true, force: true })
     }
+  })
+})
+
+describe('global dispatch rule (fork provider interceptor)', () => {
+  it('routes a one-shot dispatch by explicit name and overrides the prompt', () => {
+    const home = mkdtempSync(join(tmpdir(), 'ufx-models-'))
+    const previous = process.env.DSH_HOME
+    process.env.DSH_HOME = home
+    const seen = []
+    try {
+      writeFileSync(subagentModelsPath(), JSON.stringify({
+        work: { description: '代码任务', provider: 'r', model: 'deepseek-v4-flash' },
+      }))
+      const provider = { name: 'fork', start: async (request) => { seen.push(request); return { id: 'run-1' } } }
+      const installed = installDispatchRule({ getProvider: () => provider })
+      assert.equal(installed, true)
+      return provider.start({
+        label: '原来的标签',
+        prompt: [{ type: 'text', text: 'work 整理文档' }],
+        parent: {},
+        signal: undefined,
+      }).then(() => {
+        assert.equal(seen.length, 1)
+        assert.equal(seen[0].label, 'work')
+        assert.deepEqual(seen[0].agentOptions, { provider: 'r', model: 'deepseek-v4-flash' })
+        assert.deepEqual(seen[0].prompt, [{ type: 'text', text: '整理文档' }])
+      })
+    } finally {
+      process.env.DSH_HOME = previous
+      rmSync(home, { recursive: true, force: true })
+    }
+  })
+  it('passes through untouched when nothing matches', async () => {
+    const home = mkdtempSync(join(tmpdir(), 'ufx-models-'))
+    const previous = process.env.DSH_HOME
+    process.env.DSH_HOME = home
+    const seen = []
+    try {
+      writeFileSync(subagentModelsPath(), JSON.stringify({ work: { description: '代码任务', provider: 'r', model: 'deepseek-v4-flash' } }))
+      const provider = { name: 'fork', start: async (request) => { seen.push(request); return { id: 'run-1' } } }
+      installDispatchRule({ getProvider: () => provider })
+      const request = { label: 'keep', prompt: [{ type: 'text', text: '今天天气怎么样' }], parent: {}, signal: undefined }
+      await provider.start(request)
+      assert.equal(seen[0], request)
+    } finally {
+      process.env.DSH_HOME = previous
+      rmSync(home, { recursive: true, force: true })
+    }
+  })
+  it('is idempotent', () => {
+    const provider = { name: 'fork', start: async () => ({ id: 'run-1' }) }
+    const subagents = { getProvider: () => provider }
+    assert.equal(installDispatchRule(subagents), true)
+    assert.equal(installDispatchRule(subagents), false)
   })
 })
 
