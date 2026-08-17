@@ -6,20 +6,7 @@ the broken packages or their profile config by hand.
 
 ## What it fixes
 
-### 1. dsh-auto-approval@0.1.0 — scoped package names that were never published
-
-The package's `cordis.patch.yml` mounts its plugins as
-`@deepseek-ai/dsh-auto-approval` and `@deepseek-ai/dsh-client-ui-auto-approval`,
-but both are published on npm under **bare names** (`dsh-auto-approval`,
-`dsh-client-ui-auto-approval`); the scoped names do not exist. `dsh web` dies
-at boot with `ERR_MODULE_NOT_FOUND`.
-
-Fix: a postinstall script (`scripts/install-aliases.mjs`) symlinks the scoped
-names to the real packages in `$DSH_HOME/profiles/node_modules` (pnpm never
-manages that directory, so the links survive profile reinstalls). The entries,
-their ids, and the client bundle's self-registration id then all agree.
-
-### 2. dsh-sidechain@0.6.2 — deep runtime source import in the client bundle
+### 1. dsh-sidechain@0.6.2 — deep runtime source import in the client bundle
 
 The package's client bundle requires
 `@deepseek-ai/dsh-client-runtime/src/client/sessions/context-provenance.ts`,
@@ -31,7 +18,7 @@ tier (before any plugin factory materializes), a shim factory for that exact
 specifier that delegates to the public
 `@deepseek-ai/dsh-client-runtime/client` entry.
 
-### 3. dsh-vision-toolkit@0.1.2 — legacy `httpServer` service key
+### 2. dsh-vision-toolkit@0.1.2 — legacy `httpServer` service key
 
 The package attaches its Web routes by injecting the legacy `httpServer`
 service, but the current webserver registers itself as `webServer`, so the
@@ -43,7 +30,7 @@ Fix: this plugin's host half provides an `httpServer` alias pointing at the
 same `webServer` service instance, so the legacy inject resolves and the
 routes attach. The alias is skipped if a real `httpServer` service exists.
 
-### 4. plugin-console@0.1.0 — the update button never performs a real update
+### 3. plugin-console@0.1.0 — the update button never performs a real update
 
 The plugin-console panel's 更新 button only runs `pnpm update <name>` inside
 the profile. That is a **no-op for `link:`/`file:` local dependencies** (the
@@ -73,7 +60,7 @@ Fix, without editing plugin-console:
 Bundle plugins still need a web restart after the update; client-only
 plugins need a page refresh.
 
-### 5. dsh-task-board + dsh-ssh — sidebar entry buttons glued together
+### 4. dsh-task-board + dsh-ssh — sidebar entry buttons glued together
 
 The two plugins inject their sidebar rows as plain DOM buttons
 (`data-dsh-taskboard-entry` / `data-dsh-ssh-entry`) directly into the sidebar
@@ -92,7 +79,7 @@ selector applies cleanly without fighting their styles (and it still applies
 when only one of the two plugins is installed). Client-side only: a page
 refresh is enough.
 
-### 6. dsh-host-apiproxy — hardcoded settings namespace whitelist
+### 5. dsh-host-apiproxy — hardcoded settings namespace whitelist
 
 The official ApiProxy decides which settings namespaces the Web client may
 read and write through a hardcoded allowlist (`WEB_SETTINGS_NAMESPACES`:
@@ -132,28 +119,8 @@ git clone https://github.com/qincaizheng/dsh-upstream-fixes.git ~/.dsh/plugins/d
 dsh plugin --profile web add ~/.dsh/plugins/dsh-upstream-fixes
 ```
 
-`dsh plugin add` with a file path installs a `link:` dependency, and pnpm does
-not run postinstall scripts for linked packages. Create the alias symlinks
-manually:
-
-```sh
-node ~/.dsh/plugins/dsh-upstream-fixes/scripts/install-aliases.mjs
-```
-
-The same command doubles as a repair tool: re-run it whenever the links go
-stale (profile reinstall, DSH home move, ...). If you install the package
-from a registry instead, the postinstall runs automatically.
-
-Fix 4 (real plugin updates) is a Node-half route: after installing or
-updating this package, restart `dsh web` and refresh the page. Then open
-设置 → 插件, click 检查更新, and the 更新 button performs a real update
-(git pull for local git plugins, `pnpm update --latest` for registry ones).
-
 ## Remove
 
 ```sh
 dsh plugin --profile web rm @dsh-external/dsh-upstream-fixes
 ```
-
-Removing the plugin does not delete the symlinks; delete them manually if you
-also remove the broken plugins.
